@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climb the Summit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #print-area, #print-area * {
+                visibility: visible;
+            }
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 5in;
+                height: 5in;
+                background: white !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        .lattice-container {
+            width: 4in;
+            height: 4in;
+            background-color: white;
+            border: 1px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .print-lattice-container {
+            width: 5in;
+            height: 5in;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        circle {
+            fill: white;
+            stroke: black;
+            stroke-width: 1pt;
+        }
+
+        line {
+            stroke: black;
+            stroke-width: 1pt;
+        }
+
+        text {
+            font-family: Arial, sans-serif;
+            text-anchor: middle;
+            dominant-baseline: central;
+            fill: black;
+            pointer-events: none;
+        }
+
+        .clue-text {
+            font-weight: bold;
+        }
+
+        .user-text {
+            fill: #444;
+            font-style: italic;
+        }
+
+        /* Example styles */
+        .example-svg {
+            max-width: 350px;
+            margin: 1rem auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center py-8 px-4">
+
+    <!-- MAIN PUZZLE VIEW -->
+    <div id="puzzle-view" class="max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg no-print">
+        <h1 class="text-3xl font-bold text-center mb-1">Climb the Summit</h1>
+        <div class="text-lg text-center text-gray-600 mb-2 italic">Add two lower nodes to climb the mountain.</div>
+        <div class="text-center text-gray-700 mb-1 font-medium">Find the value of the nodes on the bottom row.</div>
+        <div id="instruction-sub" class="text-center text-gray-600 mb-6 text-sm">Choose them from the consecutive numbers 1 to [order].</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-semibold">Lattice Order:</label>
+                <input type="number" id="order-input" value="4" min="3" max="10" 
+                    class="border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-semibold">Difficulty:</label>
+                <select id="difficulty-input" class="border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="1">Level 1 (Standard)</option>
+                    <option value="2">Level 2 (Fewer Row 2 Clues)</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-semibold">Puzzle ID:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="id-input" placeholder="e.g. 4-1-ABCD123"
+                        class="border rounded px-3 py-2 flex-grow focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono text-xs">
+                    <button onclick="regenerateFromId()" class="bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded transition-colors text-sm font-medium">Load</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-center mb-8">
+            <div id="screen-lattice" class="lattice-container">
+                <!-- SVG injected here -->
+            </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-4">
+            <button onclick="newPuzzle()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md">New Puzzle</button>
+            <button onclick="toggleSolution()" id="solution-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md">Show Solution</button>
+            <button onclick="showExample()" class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md">Example</button>
+            <button onclick="window.print()" class="bg-gray-800 hover:bg-black text-white px-6 py-2 rounded-lg font-semibold transition-all shadow-md flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 fill-white" viewBox="0 0 512 512"><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H384V160h64V64c0-35.3-28.7-64-64-64H128zM448 192H64c-35.3 0-64 28.7-64 64v96c0 35.3 28.7 64 64 64h32v96c0 35.3 28.7 64 64 64H352c35.3 0 64-28.7 64-64V416h32c35.3 0 64-28.7 64-64V256c0-35.3-28.7-64-64-64zM352 448H160V320H352V448zm48-192a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"/></svg>
+                Print
+            </button>
+        </div>
+
+        <div class="mt-8 pt-6 border-t text-center text-sm text-gray-500">
+            Current ID: <span id="display-id" class="font-mono font-bold text-gray-800"></span>
+        </div>
+    </div>
+
+    <!-- EXAMPLE VIEW -->
+    <div id="example-view" class="hidden max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg no-print">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold">Summit Example</h2>
+            <button onclick="hideExample()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded font-semibold">Back to Puzzle</button>
+        </div>
+
+        <div class="space-y-6 text-gray-800 leading-relaxed overflow-y-auto max-h-[70vh] pr-2">
+            <p>Weirdly, it might be easier to start at order 5 (level 1) than order 4. Here’s an example:</p>
+            
+            <div id="example-img-1" class="example-svg"></div>
+
+            <p>Since two lower nodes sum to the upper node they’re connected to we see that between 7 and 5 must be a six (7 + 6 = 13):</p>
+
+            <div id="example-img-2" class="example-svg"></div>
+
+            <p>Which means two more nodes are easy to find:</p>
+
+            <div id="example-img-3" class="example-svg"></div>
+
+            <p>Now working down the right side:</p>
+
+            <div id="example-img-4" class="example-svg"></div>
+
+            <p>Finally, the bottom row has to be a permutation of: 1 2 3 4 5. The rightmost nodes must be 1 3 or 3 1. Just try something: put 1 in the far right and work the other nodes out. If there’s a problem (there is) then put 3 in the rightmost node.</p>
+
+            <div id="example-img-5" class="example-svg"></div>
+
+            <p>So start with 3 at the far right and you will see that all is well.</p>
+
+            <p>If you don’t get a puzzle with a node that is easy to find, just make a new puzzle. After awhile you will develop a strategy (i.e. a guessing procedure) so you can solve more difficult puzzles.</p>
+
+            <p>Lattice order 4, Level 2 look pretty scary, but with a strategy and a bit of persistence they can be solved.</p>
+
+            <p>Have fun!<br>Robert</p>
+        </div>
+
+        <div class="mt-8 text-center">
+            <button onclick="hideExample()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold shadow-md transition-all">Return to Puzzle</button>
+        </div>
+    </div>
+
+    <div id="print-area" class="hidden print:block">
+        <div class="print-lattice-container">
+            <h1 class="text-2xl font-bold mb-1">Climb the Summit</h1>
+            <p class="text-base italic mb-2">Add two lower nodes to climb the mountain.</p>
+            <p class="text-sm mb-0">Find the value of the nodes on the bottom row.</p>
+            <p id="print-instruction-sub" class="text-xs mb-4">Choose them from the consecutive numbers 1 to [order].</p>
+            
+            <div id="print-lattice-svg" style="width: 4.5in; height: 4.5in;">
+                <!-- SVG injected here -->
+            </div>
+            
+            <div class="mt-4 text-xs font-mono">
+                Puzzle ID: <span id="print-display-id"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPuzzle = null;
+        let showSolution = false;
+
+        function mulberry32(a) {
+            return function() {
+              var t = a += 0x6D2B79F5;
+              t = Math.imul(t ^ t >>> 15, t | 1);
+              t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+              return ((t ^ t >>> 14) >>> 0) / 4294967296;
+            }
+        }
+
+        function generateRandomSeed() {
+            return Math.random().toString(36).substring(2, 9).toUpperCase();
+        }
+
+        function stringToSeed(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) - hash) + str.charCodeAt(i);
+                hash |= 0;
+            }
+            return hash;
+        }
+
+        function shuffle(array, rng) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(rng() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function initPuzzle(order, difficulty, rawSeed) {
+            const fullId = `${order}-${difficulty}-${rawSeed}`;
+            const seed = stringToSeed(fullId);
+            const rng = mulberry32(seed);
+
+            let bottomRow = [];
+            for (let i = 1; i <= order; i++) bottomRow.push(i);
+            shuffle(bottomRow, rng);
+
+            let lattice = [bottomRow];
+            for (let r = 1; r < order; r++) {
+                let prevRow = lattice[r - 1];
+                let currentRow = [];
+                for (let i = 0; i < prevRow.length - 1; i++) {
+                    currentRow.push(prevRow[i] + prevRow[i + 1]);
+                }
+                lattice.push(currentRow);
+            }
+
+            let clues = new Set();
+            clues.add(`${order - 1}-0`); 
+
+            if (order > 3) {
+                for (let r = 1; r < order - 2; r++) {
+                    let rowLen = lattice[r].length;
+                    let numClues = Math.floor(rowLen / 2);
+                    if (difficulty === 2 && r === 1) {
+                        numClues = Math.max(0, numClues - 1);
+                    }
+                    let indices = [];
+                    for(let i=0; i<rowLen; i++) indices.push(i);
+                    shuffle(indices, rng);
+                    for(let k=0; k<numClues; k++) {
+                        clues.add(`${r}-${indices[k]}`);
+                    }
+                }
+            }
+
+            currentPuzzle = { order, difficulty, fullId, lattice, clues };
+            document.getElementById('display-id').textContent = fullId;
+            document.getElementById('print-display-id').textContent = fullId;
+            document.getElementById('id-input').value = fullId;
+            document.getElementById('order-input').value = order;
+            document.getElementById('difficulty-input').value = difficulty;
+            const subText = `Choose them from the consecutive numbers 1 to ${order}.`;
+            document.getElementById('instruction-sub').textContent = subText;
+            document.getElementById('print-instruction-sub').textContent = subText;
+            render();
+        }
+
+        function render() {
+            if (!currentPuzzle) return;
+            const { lattice, clues } = currentPuzzle;
+            const svgContent = createSvg(lattice, clues, showSolution);
+            document.getElementById('screen-lattice').innerHTML = svgContent;
+            document.getElementById('print-lattice-svg').innerHTML = svgContent;
+        }
+
+        function createSvg(lattice, clues, reveal, customValues = null) {
+            const order = lattice.length;
+            const padding = 50;
+            const viewBoxSize = 500;
+            const radius = 26 - (order > 6 ? (order - 6) * 3 : 0);
+            const fontSize = radius * 1.1;
+            
+            let svg = `<svg viewBox="0 0 ${viewBoxSize} ${viewBoxSize}">`;
+            const nodeCoords = [];
+            for (let r = 0; r < order; r++) {
+                const row = [];
+                const numInRow = lattice[r].length;
+                const y = viewBoxSize - padding - (r * (viewBoxSize - 2 * padding) / (order - 1));
+                const rowWidth = (numInRow - 1) * (viewBoxSize - 2 * padding) / (order - 1);
+                const startX = (viewBoxSize - rowWidth) / 2;
+                for (let i = 0; i < numInRow; i++) {
+                    const x = startX + i * (viewBoxSize - 2 * padding) / (order - 1);
+                    row.push({ x, y });
+                }
+                nodeCoords.push(row);
+            }
+
+            for (let r = 0; r < order - 1; r++) {
+                for (let i = 0; i < nodeCoords[r].length - 1; i++) {
+                    const startNode = nodeCoords[r][i];
+                    const nextNode = nodeCoords[r][i+1];
+                    const topNode = nodeCoords[r+1][i];
+                    svg += `<line x1="${startNode.x}" y1="${startNode.y}" x2="${topNode.x}" y2="${topNode.y}" />`;
+                    svg += `<line x1="${nextNode.x}" y1="${nextNode.y}" x2="${topNode.x}" y2="${topNode.y}" />`;
+                }
+            }
+
+            for (let r = 0; r < order; r++) {
+                for (let i = 0; i < nodeCoords[r].length; i++) {
+                    const coord = nodeCoords[r][i];
+                    const valKey = `${r}-${i}`;
+                    const isClue = clues.has(valKey);
+                    let displayVal = null;
+                    let textClass = 'user-text';
+
+                    if (customValues && customValues[valKey] !== undefined) {
+                        displayVal = customValues[valKey];
+                        if (isClue) textClass = 'clue-text';
+                    } else if (isClue || reveal) {
+                        displayVal = lattice[r][i];
+                        textClass = isClue ? 'clue-text' : 'user-text';
+                    }
+                    
+                    svg += `<circle cx="${coord.x}" cy="${coord.y}" r="${radius}" />`;
+                    if (displayVal !== null) {
+                        svg += `<text x="${coord.x}" y="${coord.y}" class="${textClass}" style="font-size: ${fontSize}px;">${displayVal}</text>`;
+                    }
+                }
+            }
+            svg += `</svg>`;
+            return svg;
+        }
+
+        function newPuzzle() {
+            const order = parseInt(document.getElementById('order-input').value) || 4;
+            const difficulty = parseInt(document.getElementById('difficulty-input').value) || 1;
+            const rawSeed = generateRandomSeed();
+            showSolution = false;
+            updateBtnText();
+            initPuzzle(order, difficulty, rawSeed);
+        }
+
+        function regenerateFromId() {
+            let fullId = document.getElementById('id-input').value.trim().toUpperCase();
+            if (!fullId) { newPuzzle(); return; }
+            let order = 4, difficulty = 1, rawSeed = fullId;
+            if (fullId.includes('-')) {
+                const parts = fullId.split('-');
+                if (parts.length >= 3) {
+                    order = parseInt(parts[0]) || 4;
+                    difficulty = parseInt(parts[1]) || 1;
+                    rawSeed = parts.slice(2).join('-');
+                } else if (parts.length === 2) {
+                    order = parseInt(parts[0]) || 4;
+                    rawSeed = parts[1];
+                }
+            }
+            showSolution = false;
+            updateBtnText();
+            initPuzzle(order, difficulty, rawSeed);
+        }
+
+        function toggleSolution() {
+            showSolution = !showSolution;
+            updateBtnText();
+            render();
+        }
+
+        function updateBtnText() {
+            const btn = document.getElementById('solution-btn');
+            btn.textContent = showSolution ? "Hide Solution" : "Show Solution";
+        }
+
+        function showExample() {
+            document.getElementById('puzzle-view').classList.add('hidden');
+            document.getElementById('example-view').classList.remove('hidden');
+            renderExampleSteps();
+        }
+
+        function hideExample() {
+            document.getElementById('example-view').classList.add('hidden');
+            document.getElementById('puzzle-view').classList.remove('hidden');
+        }
+
+        function renderExampleSteps() {
+            const mockLattice = [
+                [0,0,0,0,0], [0,0,0,0], [0,0,0], [0,0], [44]
+            ];
+            const order = 5;
+
+            // Step 1
+            const clues1 = new Set(['4-0', '2-0', '1-0', '1-2']);
+            const vals1 = {'4-0': 44, '2-0': 13, '1-0': 7, '1-2': 5};
+            document.getElementById('example-img-1').innerHTML = createSvg(mockLattice, clues1, false, vals1);
+
+            // Step 2
+            const clues2 = new Set(['4-0', '2-0', '1-0', '1-2']);
+            const vals2 = {...vals1, '1-1': 6};
+            document.getElementById('example-img-2').innerHTML = createSvg(mockLattice, clues2, false, vals2);
+
+            // Step 3
+            const clues3 = new Set(['4-0', '2-0', '1-0', '1-2']);
+            const vals3 = {...vals2, '3-0': 24, '2-1': 11};
+            document.getElementById('example-img-3').innerHTML = createSvg(mockLattice, clues3, false, vals3);
+
+            // Step 4
+            const clues4 = new Set(['4-0', '2-0', '1-0', '1-2']);
+            const vals4 = {...vals3, '3-1': 20, '2-2': 9, '1-3': 4};
+            document.getElementById('example-img-4').innerHTML = createSvg(mockLattice, clues4, false, vals4);
+
+            // Step 5 (The Oops)
+            const clues5 = new Set(['4-0', '2-0', '1-0', '1-2']);
+            const vals5 = {...vals4, '0-0': 3, '0-1': 4, '0-2': 2, '0-3': 3, '0-4': 1};
+            let svg5 = createSvg(mockLattice, clues5, false, vals5);
+            svg5 = svg5.replace('</svg>', '<text x="50" y="480" fill="red" font-weight="bold" font-size="24">OOPS!</text></svg>');
+            document.getElementById('example-img-5').innerHTML = svg5;
+        }
+
+        window.onload = newPuzzle;
+    </script>
+</body>
+</html>

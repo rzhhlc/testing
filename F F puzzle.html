@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fields and Fences</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { 
+                display: block !important; 
+                position: static !important; 
+                width: 100% !important;
+            }
+            body { background: white; }
+            .puzzle-container { 
+                border: none !important; 
+                box-shadow: none !important; 
+                width: 100% !important; 
+                max-width: none !important;
+                margin-top: 0.75in !important;
+            }
+        }
+        .cursor-pointer { cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 32px;
+            height: 32px;
+            background: #4f46e5;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .example-doc-container {
+            font-family: 'Times New Roman', Times, serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // Seeded Random Number Generator (SplitMix32)
+        const createPRNG = (seed) => {
+            let h = seed >>> 0;
+            return () => {
+                h = (h + 0x9e3779b9) | 0;
+                let t = Math.imul(h ^ (h >>> 16), 0x21f0aaad);
+                t = Math.imul(t ^ (t >>> 15), 0x735a2d97);
+                return ((t = t ^ (t >>> 15)) >>> 0) / 4294967296;
+            };
+        };
+
+        // Static diagram component for the example documentation
+        const ExampleDiagram = ({ nodeValues = {}, highlightedSums = {} }) => {
+            const centerX = 200, centerY = 200, radius = 150;
+            const outerCount = 5;
+            const nodes = [{id: 0, x: centerX, y: centerY}];
+            for (let i = 0; i < outerCount; i++) {
+                const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2;
+                nodes.push({ id: i + 1, x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle) });
+            }
+
+            const regionLabels = [
+                { sum: 6, nodeIds: [0, 4, 5] },
+                { sum: 7, nodeIds: [0, 5, 1] },
+                { sum: 13, nodeIds: [0, 1, 2] },
+                { sum: 10, nodeIds: [0, 3, 4] },
+                // The empty space for the example logic
+            ];
+
+            return (
+                <div className="flex justify-center my-8">
+                    <svg viewBox="0 0 400 400" className="w-full max-w-[400px] border border-slate-100 rounded-xl bg-white shadow-sm">
+                        <g>
+                            {/* Outer Arcs */}
+                            {nodes.slice(1).map((n, i) => {
+                                const next = nodes[i === outerCount - 1 ? 1 : i + 2];
+                                const dx = next.x - n.x, dy = next.y - n.y;
+                                const dr = Math.sqrt(dx * dx + dy * dy) * 1.2;
+                                return <path key={i} d={`M ${n.x} ${n.y} A ${dr} ${dr} 0 0 1 ${next.x} ${next.y}`} fill="none" stroke="black" strokeWidth="2" />;
+                            })}
+                            {/* Spokes */}
+                            {nodes.slice(1).map(n => <line key={n.id} x1={centerX} y1={centerY} x2={n.x} y2={n.y} stroke="black" strokeWidth="2" />)}
+                        </g>
+                        <g>
+                            {regionLabels.map((reg, i) => {
+                                const rNodes = nodes.filter(n => reg.nodeIds.includes(n.id));
+                                const lx = rNodes.reduce((a, b) => a + b.x, 0) / rNodes.length;
+                                const ly = rNodes.reduce((a, b) => a + b.y, 0) / rNodes.length;
+                                return (
+                                    <g key={i} transform={`translate(${lx-20}, ${ly-20})`}>
+                                        <rect width="40" height="40" rx="8" fill="white" stroke="#6366f1" strokeWidth="2" />
+                                        <text x="20" y="26" textAnchor="middle" className="font-bold fill-indigo-700" style={{fontSize: '18px'}}>{reg.sum}</text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                        <g>
+                            {nodes.map(n => (
+                                <g key={n.id}>
+                                    <circle cx={n.x} cy={n.y} r="20" fill="white" stroke="black" strokeWidth="2" />
+                                    <text x={n.x} y={n.y + 6} textAnchor="middle" className="font-bold fill-slate-900" style={{fontSize: '18px'}}>{nodeValues[n.id] || ''}</text>
+                                </g>
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+            );
+        };
+
+        const ExampleView = ({ onBack }) => (
+            <div className="min-h-screen bg-white w-full max-w-[900px] mx-auto p-12 shadow-2xl relative example-doc-container overflow-y-auto">
+                <button 
+                    onClick={onBack}
+                    className="fixed top-8 right-8 bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-900 transition-all z-50 shadow-lg"
+                >
+                    <i data-lucide="corner-up-left" className="w-5 h-5"></i>
+                    Return to puzzle
+                </button>
+
+                <h1 className="text-4xl font-bold border-b-2 border-slate-200 pb-4 mb-8">Example: Fields and Fences Strategy</h1>
+                
+                <p className="text-xl leading-relaxed mb-6">
+                    The 6 nodes contain the six consecutive numbers: 1 2 3 4 5 6. We have to place them so the number inside the fields (in the blue squares) the nodes define is the sum of its nodes.
+                </p>
+
+                <p className="text-xl leading-relaxed mb-6">
+                    One strategy is to look at either the smallest (or largest) sum. In this case the smallest. Using 3 of the consecutive numbers there is only one way to get a sum of 6 = 1 + 2 + 3. The next question is: which nodes do we assign them to? This is a “guess”: Since the largest field, 13, shares a node, I’m putting the 3 in the centre, the 2 on the right and the 1 on the left. These are hunches based on the sums in the adjacent fields. Here’s what we get:
+                </p>
+
+                <ExampleDiagram nodeValues={{ 0: 3, 4: 2, 5: 1 }} />
+
+                <p className="text-xl leading-relaxed mb-6">
+                    Now two of the nodes are easy to find: 7 = 1 + 3 + 3. But this cannot be since 3 is already in use. If we swap the 2 and 1 and try again: 7 = 2 + 3 + 2 we run into the same problem. Clearly the centre node cannot be 3 so we exchange the 3 and 2 and try again:
+                </p>
+
+                <ExampleDiagram nodeValues={{ 0: 2, 4: 3, 5: 1 }} />
+
+                <p className="text-xl leading-relaxed mb-6">
+                    Now we have: 7 = 1 + 2 + 4 which is allowed and 10 = 2 + 3 + 5 also allowed. This gives us:
+                </p>
+
+                <ExampleDiagram nodeValues={{ 0: 2, 4: 3, 5: 1, 1: 4, 3: 5 }} />
+
+                <p className="text-xl leading-relaxed mb-12">
+                    The only number remaining is 6 which completes the field: 13 = 2 + 5 + 6.
+                    <br/><br/>
+                    Now, you may find a better strategy than this (they are out there) but I will give you no hints since the pleasure is in discovering them for yourself.
+                    <br/><br/>
+                    Have fun!
+                </p>
+            </div>
+        );
+
+        const App = () => {
+            const [view, setView] = useState('puzzle'); // 'puzzle' or 'example'
+            const [nodeCount, setNodeCount] = useState(6);
+            const [graphType, setGraphType] = useState('regular'); 
+            const [puzzle, setPuzzle] = useState(null);
+            const [userValues, setUserValues] = useState({});
+            const [showSolution, setShowSolution] = useState(false);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [puzzleId, setPuzzleId] = useState('');
+            const [idInput, setIdInput] = useState('');
+
+            const NODE_RADIUS = 37.5; 
+            const SQUARE_SIZE = 90; 
+            const HALF_SQUARE = SQUARE_SIZE / 2;
+
+            const distToSegment = (px, py, x1, y1, x2, y2) => {
+                const l2 = (x1 - x2) ** 2 + (y1 - y2) ** 2;
+                if (l2 === 0) return Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+                let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.sqrt((px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2);
+            };
+
+            const distToArc = (px, py, u, v) => {
+                const dx = v.x - u.x, dy = v.y - u.y;
+                const midX = (u.x + v.x) / 2, midY = (u.y + v.y) / 2;
+                const peakX = midX - dy * 0.2, peakY = midY + dx * 0.2;
+                const steps = 8;
+                let minDist = Infinity;
+                let prevX = u.x, prevY = u.y;
+                for (let i = 1; i <= steps; i++) {
+                    const t = i / steps;
+                    const nextX = (1 - t) ** 2 * u.x + 2 * (1 - t) * t * peakX + t ** 2 * v.x;
+                    const nextY = (1 - t) ** 2 * u.y + 2 * (1 - t) * t * peakY + t ** 2 * v.y;
+                    minDist = Math.min(minDist, distToSegment(px, py, prevX, prevY, nextX, nextY));
+                    prevX = nextX; prevY = nextY;
+                }
+                return minDist;
+            };
+
+            const isPositionValid = (x, y, nodes, edges, placedLabels) => {
+                const NODE_MIN_DIST = NODE_RADIUS + HALF_SQUARE + 10; 
+                const EDGE_MIN_DIST = HALF_SQUARE + 6;
+                for (const node of nodes) {
+                    const d = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
+                    if (d < NODE_MIN_DIST) return false;
+                }
+                for (const edge of edges) {
+                    const u = nodes[edge.u], v = nodes[edge.v];
+                    const d = edge.isOuter ? distToArc(x, y, u, v) : distToSegment(x, y, u.x, u.y, v.x, v.y);
+                    if (d < EDGE_MIN_DIST) return false;
+                }
+                for (const label of placedLabels) {
+                    if (Math.abs(x - label.x) < SQUARE_SIZE + 12 && Math.abs(y - label.y) < SQUARE_SIZE + 12) return false;
+                }
+                return true;
+            };
+
+            const findBestLabelPos = (nodeIds, allNodes, allEdges, placedLabels) => {
+                const regNodes = allNodes.filter(n => nodeIds.includes(n.id));
+                const cx = regNodes.reduce((acc, n) => acc + n.x, 0) / regNodes.length;
+                const cy = regNodes.reduce((acc, n) => acc + n.y, 0) / regNodes.length;
+                for (let r = 0; r < 400; r += 6) { 
+                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 18) {
+                        const tx = cx + Math.cos(a) * r, ty = cy + Math.sin(a) * r;
+                        if (isPositionValid(tx, ty, allNodes, allEdges, placedLabels)) return { x: tx, y: ty };
+                    }
+                }
+                return { x: cx, y: cy };
+            };
+
+            const solve = (revealedRegions, N) => {
+                const solutions = [];
+                const currentAssignment = new Array(N).fill(null);
+                const usedValues = new Array(N + 1).fill(false);
+                const isPossible = (assignment) => {
+                    for (const reg of revealedRegions) {
+                        let currentSum = 0, assignedCount = 0;
+                        const uniqueCorners = [...new Set(reg.nodeIds)];
+                        for (const id of uniqueCorners) {
+                            if (assignment[id] !== null) {
+                                currentSum += assignment[id];
+                                assignedCount++;
+                            }
+                        }
+                        const remainingCount = uniqueCorners.length - assignedCount;
+                        if (remainingCount === 0) {
+                            if (currentSum !== reg.sum) return false;
+                        } else {
+                            const available = [];
+                            for (let v = 1; v <= N; v++) if (!usedValues[v]) available.push(v);
+                            if (available.length < remainingCount) return false;
+                            const minRem = available.slice(0, remainingCount).reduce((a, b) => a + b, 0);
+                            if (currentSum + minRem > reg.sum) return false;
+                            const maxRem = available.slice(-remainingCount).reduce((a, b) => a + b, 0);
+                            if (currentSum + maxRem < reg.sum) return false;
+                        }
+                    }
+                    return true;
+                };
+                const backtrack = (nodeIdx) => {
+                    if (solutions.length > 1) return;
+                    if (nodeIdx === N) {
+                        solutions.push([...currentAssignment]);
+                        return;
+                    }
+                    for (let v = 1; v <= N; v++) {
+                        if (!usedValues[v]) {
+                            currentAssignment[nodeIdx] = v;
+                            usedValues[v] = true;
+                            if (isPossible(currentAssignment)) backtrack(nodeIdx + 1);
+                            usedValues[v] = false;
+                            currentAssignment[nodeIdx] = null;
+                        }
+                    }
+                };
+                backtrack(0);
+                return solutions;
+            };
+
+            const minimizeRegions = (allRegions, N, solution, prng) => {
+                let currentRegions = allRegions.map(r => ({ ...r, revealed: true }));
+                const indices = allRegions.map((_, i) => i);
+                for (let i = indices.length - 1; i > 0; i--) {
+                    const j = Math.floor(prng() * (i + 1));
+                    [indices[i], indices[j]] = [indices[j], indices[i]];
+                }
+                for (const idx of indices) {
+                    currentRegions[idx].revealed = false;
+                    if (solve(currentRegions.filter(r => r.revealed), N).length !== 1) {
+                        currentRegions[idx].revealed = true;
+                    }
+                }
+                return currentRegions;
+            };
+
+            const createGraph = (n, type, prng) => {
+                const nodes = [], edges = [], regions = [];
+                const centerX = 750, centerY = 750, radius = 600;
+                if (type === 'regular' || n < 6) {
+                    nodes.push({ id: 0, x: centerX, y: centerY });
+                    const outerCount = n - 1;
+                    for (let i = 0; i < outerCount; i++) {
+                        const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2;
+                        nodes.push({ id: i + 1, x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle) });
+                    }
+                    for (let i = 0; i < outerCount; i++) {
+                        const u = i + 1, v = ((i + 1) % outerCount) + 1;
+                        edges.push({ u: 0, v: u }, { u: u, v: v, isOuter: true });
+                        regions.push({ nodeIds: [0, u, v], id: `r${i}` });
+                    }
+                } else {
+                    const coreRoll = prng();
+                    let coreCount = coreRoll < 0.25 ? 1 : (coreRoll < 0.7 ? 2 : 3);
+                    if (n < 7 && coreCount === 3) coreCount = 2;
+                    if (coreCount === 1) {
+                        nodes.push({ id: 0, x: centerX + (prng()-0.5)*110, y: centerY + (prng()-0.5)*110 });
+                    } else if (coreCount === 2) {
+                        const offset = 110 + prng() * 75, angle = prng() * Math.PI;
+                        nodes.push({ id: 0, x: centerX - Math.cos(angle) * offset, y: centerY - Math.sin(angle) * offset });
+                        nodes.push({ id: 1, x: centerX + Math.cos(angle) * offset, y: centerY + Math.sin(angle) * offset });
+                        edges.push({ u: 0, v: 1 });
+                    } else {
+                        const triRad = 110;
+                        for (let i = 0; i < 3; i++) {
+                            const a = (i/3)*Math.PI*2 - Math.PI/2;
+                            nodes.push({ id: i, x: centerX + Math.cos(a)*triRad, y: centerY + Math.sin(a)*triRad });
+                        }
+                        edges.push({u:0, v:1}, {u:1, v:2}, {u:2, v:0});
+                    }
+                    const outerCount = n - coreCount;
+                    for (let i = 0; i < outerCount; i++) {
+                        const jitter = (prng() - 0.5) * 0.4, distJitter = (prng() - 0.5) * 110;
+                        const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2 + jitter;
+                        nodes.push({ id: i + coreCount, x: centerX + (radius + distJitter) * Math.cos(angle), y: centerY + (radius + distJitter) * Math.sin(angle) });
+                    }
+                    for (let i = 0; i < outerCount; i++) {
+                        const u = i + coreCount, v = ((i + 1) % outerCount) + coreCount;
+                        edges.push({ u, v, isOuter: true });
+                        const getCore = (nodeId) => {
+                            if (coreCount === 1) return 0;
+                            const node = nodes[nodeId], angle = Math.atan2(node.y - centerY, node.x - centerX);
+                            if (coreCount === 2) {
+                                const core0Angle = Math.atan2(nodes[0].y - centerY, nodes[0].x - centerX);
+                                let diff = Math.abs(angle - core0Angle);
+                                if (diff > Math.PI) diff = 2*Math.PI - diff;
+                                return diff < Math.PI/2 ? 0 : 1;
+                            } else {
+                                let best = 0, minDist = Infinity;
+                                for (let c=0; c<3; c++) {
+                                    const d = Math.sqrt((node.x - nodes[c].x)**2 + (node.y - nodes[c].y)**2);
+                                    if (d < minDist) { minDist = d; best = c; }
+                                }
+                                return best;
+                            }
+                        };
+                        const targetCore = getCore(u), nextTargetCore = getCore(v);
+                        edges.push({ u: targetCore, v: u });
+                        if (targetCore === nextTargetCore) regions.push({ nodeIds: [targetCore, u, v], id: `r${i}` });
+                        else regions.push({ nodeIds: [targetCore, nextTargetCore, v, u], id: `r${i}` });
+                    }
+                    if (coreCount === 3) regions.push({ nodeIds: [0, 1, 2], id: 'inner_core' });
+                }
+                return { nodes, edges, regions };
+            };
+
+            const generatePuzzle = useCallback((targetId = null) => {
+                setIsGenerating(true);
+                setTimeout(() => {
+                    let nC, tC, sC;
+                    if (targetId) {
+                        const parts = targetId.split('-');
+                        if (parts.length === 3) {
+                            nC = parseInt(parts[0]); tC = parts[1] === 'REG' ? 'regular' : 'irregular'; sC = parseInt(parts[2]);
+                            setNodeCount(nC); setGraphType(tC);
+                        } else { nC = nodeCount; tC = graphType; sC = Math.floor(Math.random() * 1000000); }
+                    } else { nC = nodeCount; tC = graphType; sC = Math.floor(Math.random() * 1000000); }
+                    const prng = createPRNG(sC), { nodes, edges, regions } = createGraph(nC, tC, prng);
+                    const nValues = Array.from({ length: nC }, (_, i) => i + 1);
+                    for (let i = nValues.length - 1; i > 0; i--) {
+                        const j = Math.floor(prng() * (i + 1));
+                        [nValues[i], nValues[j]] = [nValues[j], nValues[i]];
+                    }
+                    const solution = {}; nodes.forEach((n, i) => { solution[n.id] = nValues[i]; });
+                    const placed = [];
+                    const allRegs = regions.map(reg => {
+                        const pos = findBestLabelPos(reg.nodeIds, nodes, edges, placed);
+                        placed.push(pos);
+                        const unique = [...new Set(reg.nodeIds)];
+                        return { ...reg, labelX: pos.x, labelY: pos.y, sum: unique.reduce((a, b) => a + solution[b], 0), revealed: true };
+                    });
+                    const fId = `${nC}-${tC === 'regular' ? 'REG' : 'IRR'}-${sC}`;
+                    setPuzzle({ nodes, edges, regions: minimizeRegions(allRegs, nC, solution, prng), solution });
+                    setPuzzleId(fId); setIdInput(fId); setUserValues({}); setShowSolution(false); setIsGenerating(false);
+                }, 50);
+            }, [nodeCount, graphType]);
+
+            useEffect(() => { generatePuzzle(); }, []);
+
+            if (view === 'example') return <ExampleView onBack={() => { setView('puzzle'); setTimeout(() => lucide.createIcons(), 50); }} />;
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-8 sm:p-16">
+                    <header className="text-center mb-12 no-print">
+                        <h1 className="text-7xl font-extrabold tracking-tight text-indigo-700">Fields and Fences</h1>
+                        <p className="text-3xl font-medium text-slate-500 italic mt-4">Nodes: 1..{nodeCount}</p>
+                    </header>
+
+                    <main className="w-full max-w-[2400px] flex flex-col lg:flex-row gap-16 items-start justify-center">
+                        <section className="no-print bg-white p-12 rounded-3xl shadow-sm border border-slate-200 w-full lg:w-[576px] flex flex-col gap-12">
+                            <div>
+                                <label className="text-2xl font-bold text-slate-400 uppercase tracking-wider block mb-6">Settings</label>
+                                <div className="space-y-8">
+                                    <div>
+                                        <span className="text-2xl text-slate-600 mb-2 block">Number of Nodes: {nodeCount}</span>
+                                        <input type="range" min="4" max="10" step="1" value={nodeCount} onChange={(e) => setNodeCount(parseInt(e.target.value))} className="w-full h-4 bg-slate-200 rounded-2xl appearance-none cursor-pointer accent-indigo-600" />
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <button onClick={() => setGraphType('regular')} className={`flex-1 py-4 text-xl font-semibold rounded-2xl border transition-all ${graphType === 'regular' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Regular</button>
+                                        <button onClick={() => setGraphType('irregular')} className={`flex-1 py-4 text-xl font-semibold rounded-2xl border transition-all ${graphType === 'irregular' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Irregular</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-8 border-t border-slate-100">
+                                <label className="text-2xl font-bold text-slate-400 uppercase tracking-wider block mb-6">Load Puzzle ID</label>
+                                <form onSubmit={(e) => { e.preventDefault(); generatePuzzle(idInput); }} className="flex gap-4">
+                                    <input type="text" value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="e.g. 6-REG-12345" className="flex-1 px-6 py-4 text-xl border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <button type="submit" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-colors">Load</button>
+                                </form>
+                                <p className="mt-4 text-slate-400 text-lg">Current ID: <span className="font-mono font-bold text-indigo-500">{puzzleId}</span></p>
+                            </div>
+
+                            <div className="space-y-4 pt-8 border-t border-slate-100">
+                                <button onClick={() => setView('example')} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-2xl font-bold hover:bg-indigo-100 transition-all">
+                                    <i data-lucide="book-open" className="w-8 h-8"></i>Example
+                                </button>
+                                <button onClick={() => generatePuzzle()} disabled={isGenerating} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-2xl font-bold transition-all disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" className={`w-8 h-8 ${isGenerating ? 'animate-spin' : ''}`}></i>New Puzzle
+                                </button>
+                                <button onClick={() => setShowSolution(!showSolution)} className={`w-full flex items-center justify-center gap-4 py-6 text-2xl rounded-2xl font-bold transition-all ${showSolution ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}>
+                                    <i data-lucide={showSolution ? 'eye-off' : 'eye'} className="w-8 h-8"></i> {showSolution ? 'Hide Solution' : 'Show Solution'}
+                                </button>
+                                <button onClick={() => window.print()} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold shadow-lg transition-all">
+                                    <i data-lucide="printer" className="w-8 h-8"></i>Print Puzzle
+                                </button>
+                            </div>
+                        </section>
+
+                        <div className="flex-1 flex flex-col items-center">
+                            <div className="puzzle-container bg-white p-8 sm:p-16 rounded-[4rem] shadow-xl border border-slate-200 relative overflow-hidden flex items-center justify-center aspect-square w-full max-w-[1050px]">
+                                <div className="hidden print-only w-full text-center">
+                                    <h1 className="text-4xl font-bold text-indigo-700">Fields and Fences</h1>
+                                    <p className="text-xl italic">Nodes: 1..{nodeCount} | ID: {puzzleId}</p>
+                                </div>
+                                {puzzle && (
+                                    <svg viewBox="0 0 1500 1500" className="w-full h-full select-none">
+                                        <g>
+                                            {puzzle.edges.map((edge, i) => {
+                                                const u = puzzle.nodes[edge.u], v = puzzle.nodes[edge.v];
+                                                if (edge.isOuter) {
+                                                    const dx = v.x - u.x, dy = v.y - u.y, dr = Math.sqrt(dx * dx + dy * dy) * 1.2;
+                                                    return <path key={`e-${i}`} d={`M ${u.x} ${u.y} A ${dr} ${dr} 0 0 1 ${v.x} ${v.y}`} fill="none" stroke="black" strokeWidth="6" strokeLinecap="round" />;
+                                                }
+                                                return <line key={`e-${i}`} x1={u.x} y1={u.y} x2={v.x} y2={v.y} stroke="black" strokeWidth="6" strokeLinecap="round" />;
+                                            })}
+                                        </g>
+                                        <g>
+                                            {puzzle.regions.filter(r => r.revealed).map((reg, i) => (
+                                                <g key={`reg-${i}`} transform={`translate(${reg.labelX - HALF_SQUARE}, ${reg.labelY - HALF_SQUARE})`}>
+                                                    <rect width={SQUARE_SIZE} height={SQUARE_SIZE} rx="15" fill="white" stroke="#6366f1" strokeWidth="4.5" />
+                                                    <text x={HALF_SQUARE} y={HALF_SQUARE + 13.5} textAnchor="middle" className="font-extrabold fill-indigo-700" style={{ fontSize: '39px' }}>{reg.sum}</text>
+                                                </g>
+                                            ))}
+                                        </g>
+                                        <g>
+                                            {puzzle.nodes.map((node) => {
+                                                const val = showSolution ? puzzle.solution[node.id] : userValues[node.id];
+                                                return (
+                                                    <g key={`n-${node.id}`} onClick={() => cycleValue(node.id)} className="cursor-pointer group">
+                                                        <circle cx={node.x} cy={node.y} r={NODE_RADIUS} fill="white" stroke="black" strokeWidth="4.5" className="transition-colors group-hover:stroke-indigo-400" />
+                                                        <text x={node.x} y={node.y + 13.5} textAnchor="middle" className={`font-bold transition-all ${showSolution ? 'fill-slate-600' : 'fill-indigo-600'}`} style={{ fontSize: '37.5px' }}>{val || ''}</text>
+                                                    </g>
+                                                );
+                                            })}
+                                        </g>
+                                    </svg>
+                                )}
+                                {isGenerating && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"><i data-lucide="refresh-cw" className="w-24 h-24 text-indigo-600 animate-spin"></i></div>}
+                            </div>
+                            <div className="mt-12 flex flex-wrap justify-center gap-6 no-print">
+                                {Array.from({ length: nodeCount }, (_, i) => i + 1).map(num => {
+                                    const count = Object.values(userValues).filter(v => v === num).length;
+                                    return <div key={num} className={`px-12 py-4 rounded-3xl text-3xl font-bold border transition-all ${count === 1 ? 'bg-green-100 text-green-700 border-green-200' : count > 1 ? 'bg-red-100 text-red-700 border-red-200 shadow-inner' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>{num}</div>;
+                                })}
+                            </div>
+                        </div>
+                    </main>
+                    <footer className="mt-24 text-slate-400 text-lg no-print text-center">Procedural logic engine with seeded randomization.</footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        setTimeout(() => lucide.createIcons(), 100);
+    </script>
+</body>
+</html>
