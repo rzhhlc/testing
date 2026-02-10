@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logic Sudoku Generator</title>
+    <style>
+        :root {
+            --cell-size-screen: calc(4in / 9);
+            --cell-size-print: calc(6in / 9);
+            --border-thin: 1pt;
+            --border-heavy: 2.5pt;
+            --border-outer: 3pt;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+        }
+
+        h1 { margin-bottom: 10px; }
+
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            max-width: 600px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+
+        label { font-weight: bold; font-size: 0.9em; }
+
+        select, input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #e0e0e0;
+            border: 1px solid #999;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: #d0d0d0; }
+
+        /* Puzzle Container */
+        .puzzle-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .puzzle-id-display {
+            font-family: monospace;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        /* The Grid */
+        #sudoku-board {
+            display: grid;
+            grid-template-columns: repeat(9, var(--cell-size-screen));
+            grid-template-rows: repeat(9, var(--cell-size-screen));
+            border: var(--border-outer) solid black;
+            background-color: white;
+            box-sizing: content-box; /* Ensure border is outside width */
+        }
+
+        .cell {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            box-sizing: border-box;
+            border-right: var(--border-thin) solid black;
+            border-bottom: var(--border-thin) solid black;
+            cursor: default;
+        }
+
+        /* Remove outer borders of cells because container has them */
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+73) { border-bottom: none; }
+
+        /* Heavy Borders for 3x3 Subgroups */
+        .cell:nth-child(3n):not(:nth-child(9n)) {
+            border-right: var(--border-heavy) solid black;
+        }
+        
+        /* Heavy bottom borders for rows 3 and 6 */
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: var(--border-heavy) solid black;
+        }
+
+        .solution-val {
+            color: #555; /* Distinct color for solution on screen, black in print */
+        }
+
+        /* Example View Styles */
+        #example-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #f8f9fa;
+            z-index: 2000;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        #example-view.active {
+            display: flex;
+        }
+
+        .example-content {
+            background: white;
+            padding: 3rem;
+            max-width: 600px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            line-height: 1.6;
+            color: #333;
+            font-size: 1.1rem;
+            position: relative;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+
+        .example-content p {
+            margin-bottom: 1.5rem;
+        }
+        
+        .example-content p:last-child {
+            font-weight: bold;
+            font-size: 1.25rem;
+            color: #2c3e50;
+            margin-bottom: 0;
+            text-align: center;
+        }
+
+        #btn-return {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        #btn-return:hover {
+            background-color: #c82333;
+        }
+
+        /* Print Styles */
+        @media print {
+            @page {
+                margin: 0;
+            }
+
+            html, body {
+                height: 100%;
+                width: 100%;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                background: white;
+                display: flex !important;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .controls, h1, .instructions, #example-view {
+                display: none !important;
+            }
+
+            .puzzle-wrapper {
+                position: static;
+                transform: none;
+                width: auto;
+            }
+
+            #sudoku-board {
+                grid-template-columns: repeat(9, var(--cell-size-print));
+                grid-template-rows: repeat(9, var(--cell-size-print));
+                border-width: 3pt; /* Ensure 3pt in print */
+            }
+
+            .cell {
+                font-size: 2rem;
+                border-right-width: 1pt;
+                border-bottom-width: 1pt;
+                color: black !important; /* Force black for print */
+            }
+            
+            /* Re-apply heavy borders for print specificity */
+            .cell:nth-child(3n):not(:nth-child(9n)) {
+                border-right-width: 2.5pt; /* Heavy border */
+            }
+            .cell:nth-child(n+19):nth-child(-n+27),
+            .cell:nth-child(n+46):nth-child(-n+54) {
+                border-bottom-width: 2.5pt;
+            }
+            .cell:nth-child(9n) { border-right: none; }
+            .cell:nth-child(n+73) { border-bottom: none; }
+
+            .puzzle-id-display {
+                font-size: 1.5rem;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Logic Sudoku Generator</h1>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="difficulty">Difficulty</label>
+            <select id="difficulty">
+                <option value="Easy">Easy</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Hard">Hard</option>
+            </select>
+        </div>
+        <button id="btn-generate">Generate New Puzzle</button>
+        
+        <div class="control-group" style="border-left: 1px solid #ccc; padding-left: 15px;">
+            <label for="puzzle-id-input">Load Puzzle ID</label>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="puzzle-id-input" placeholder="e.g. Medium-12345">
+                <button id="btn-load">Load</button>
+            </div>
+        </div>
+
+        <div class="control-group" style="border-left: 1px solid #ccc; padding-left: 15px;">
+            <button id="btn-solve">Show Solution</button>
+            <button id="btn-print">Print Puzzle</button>
+            <button id="btn-example">Example</button>
+        </div>
+    </div>
+
+    <!-- Example Overlay -->
+    <div id="example-view">
+        <button id="btn-return">Return to puzzle</button>
+        <div class="example-content">
+            <p>You will have no trouble finding instructions for sudoku online. It is this puzzle for which I am a bit worried that the ai coding may not be perfect. It is easy to generate puzzles that look solvable, but are not. I’m not a sudoku fan but I did solve half a dozen “medium” puzzles and they were all solvable with no ambiguity.</p>
+            <p>Have fun!</p>
+        </div>
+    </div>
+
+    <div class="puzzle-wrapper">
+        <div class="puzzle-id-display" id="display-id"></div>
+        <div id="sudoku-board">
+            <!-- Cells generated by JS -->
+        </div>
+    </div>
+
+<script>
+    /**
+     * PRNG: Mulberry32
+     * A simple, deterministic pseudo-random number generator.
+     */
+    function mulberry32(a) {
+        return function() {
+            var t = a += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        }
+    }
+
+    class SudokuGame {
+        constructor() {
+            this.board = [];
+            this.solution = [];
+            this.currentSeed = 0;
+            this.currentDifficulty = 'Medium';
+            this.rng = null;
+        }
+
+        // Initialize grid with zeros
+        createEmptyBoard() {
+            return Array.from({ length: 81 }, () => 0);
+        }
+
+        // Check if placing num at board[index] is valid
+        isValid(board, index, num) {
+            const row = Math.floor(index / 9);
+            const col = index % 9;
+            
+            // Check Row
+            for (let c = 0; c < 9; c++) {
+                if (board[row * 9 + c] === num) return false;
+            }
+
+            // Check Column
+            for (let r = 0; r < 9; r++) {
+                if (board[r * 9 + col] === num) return false;
+            }
+
+            // Check 3x3 Box
+            const startRow = Math.floor(row / 3) * 3;
+            const startCol = Math.floor(col / 3) * 3;
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    if (board[(startRow + r) * 9 + (startCol + c)] === num) return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Solve using backtracking. 
+        // mode: 'count' returns number of solutions (capped at 2 for efficiency)
+        // mode: 'solve' fills the board with the first solution found
+        solveHelper(board, mode = 'solve') {
+            let solutions = 0;
+
+            const findEmpty = () => {
+                for (let i = 0; i < 81; i++) if (board[i] === 0) return i;
+                return -1;
+            }
+
+            const solve = () => {
+                const index = findEmpty();
+                if (index === -1) {
+                    solutions++;
+                    return true; // Found a solution
+                }
+
+                // Optimization: Try numbers 1-9
+                for (let num = 1; num <= 9; num++) {
+                    if (this.isValid(board, index, num)) {
+                        board[index] = num;
+                        if (solve()) {
+                            if (mode === 'solve') return true;
+                            if (mode === 'count' && solutions > 1) return true; // Stop if ambiguity found
+                        }
+                        board[index] = 0; // Backtrack
+                    }
+                }
+                return false;
+            }
+
+            solve();
+            return mode === 'count' ? solutions : board;
+        }
+
+        // Generate a full valid board
+        generateFullBoard() {
+            this.solution = this.createEmptyBoard();
+            
+            // Fill diagonal 3x3 boxes first (independent of each other) to randomize start
+            for (let i = 0; i < 9; i = i + 3) {
+                this.fillBox(this.solution, i, i);
+            }
+
+            // Solve the rest
+            this.solveHelper(this.solution, 'solve');
+        }
+
+        fillBox(board, startRow, startCol) {
+            let nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+            // Shuffle
+            for (let i = nums.length - 1; i > 0; i--) {
+                const j = Math.floor(this.rng() * (i + 1));
+                [nums[i], nums[j]] = [nums[j], nums[i]];
+            }
+
+            let nIdx = 0;
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    board[(startRow + r) * 9 + (startCol + c)] = nums[nIdx++];
+                }
+            }
+        }
+
+        // Remove numbers while maintaining uniqueness
+        makePuzzle(difficulty) {
+            this.currentDifficulty = difficulty;
+            this.board = [...this.solution]; // Start with full solution
+
+            // Determine attempts based on difficulty
+            // Logic: We try to remove numbers. 
+            // Harder = try to remove more, or leave fewer clues.
+            let attempts = difficulty === 'Easy' ? 30 : difficulty === 'Medium' ? 45 : 60;
+            // Target clues is a better heuristic for generation constraint
+            // Easy: ~40-45 clues, Medium: ~32-36, Hard: ~24-28
+            let targetClues = difficulty === 'Easy' ? 42 : difficulty === 'Medium' ? 34 : 26;
+
+            // Create a randomized list of positions to try removing
+            let positions = Array.from({length: 81}, (_, i) => i);
+            // Fisher-Yates shuffle positions
+            for (let i = positions.length - 1; i > 0; i--) {
+                const j = Math.floor(this.rng() * (i + 1));
+                [positions[i], positions[j]] = [positions[j], positions[i]];
+            }
+
+            let currentClues = 81;
+
+            for (let i = 0; i < 81; i++) {
+                if (currentClues <= targetClues) break;
+
+                let idx = positions[i];
+                let backup = this.board[idx];
+                this.board[idx] = 0;
+
+                // Check uniqueness
+                // We copy the board because solveHelper modifies it
+                let boardCopy = [...this.board];
+                let solutions = this.solveHelper(boardCopy, 'count');
+
+                if (solutions !== 1) {
+                    // Not unique or no solution (should be >1 if we started from valid), put it back
+                    this.board[idx] = backup;
+                } else {
+                    currentClues--;
+                }
+            }
+        }
+
+        start(difficulty, seed = null) {
+            // Generate Seed if not provided
+            if (seed === null) {
+                seed = Math.floor(Math.random() * 1000000);
+            }
+            this.currentSeed = seed;
+            
+            // Initialize RNG
+            this.rng = mulberry32(this.currentSeed);
+
+            this.generateFullBoard();
+            this.makePuzzle(difficulty);
+            this.render();
+            this.updateDisplayID();
+        }
+
+        startFromID(idStr) {
+            // Parse ID: e.g., "Hard-88392"
+            const parts = idStr.split('-');
+            if (parts.length !== 2) {
+                alert("Invalid ID format. Use Format: Difficulty-Seed (e.g., Medium-12345)");
+                return;
+            }
+            
+            const diff = parts[0];
+            const seed = parseInt(parts[1]);
+            
+            const validDiffs = ['Easy', 'Medium', 'Hard'];
+            if (!validDiffs.includes(diff) || isNaN(seed)) {
+                alert("Invalid Difficulty or Seed.");
+                return;
+            }
+
+            // Update UI
+            document.getElementById('difficulty').value = diff;
+
+            // Start
+            this.start(diff, seed);
+        }
+
+        render() {
+            const container = document.getElementById('sudoku-board');
+            container.innerHTML = '';
+
+            for (let i = 0; i < 81; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                
+                const val = this.board[i];
+                if (val !== 0) {
+                    cell.textContent = val;
+                } else {
+                    cell.classList.add('empty');
+                    cell.id = `cell-${i}`; // for showing solution later
+                }
+                container.appendChild(cell);
+            }
+        }
+
+        showSolution() {
+            for (let i = 0; i < 81; i++) {
+                if (this.board[i] === 0) {
+                    const el = document.getElementById(`cell-${i}`);
+                    if (el) {
+                        el.textContent = this.solution[i];
+                        el.classList.add('solution-val');
+                    }
+                }
+            }
+        }
+
+        updateDisplayID() {
+            document.getElementById('display-id').textContent = `ID: ${this.currentDifficulty}-${this.currentSeed}`;
+        }
+    }
+
+    // --- Main Execution ---
+    const game = new SudokuGame();
+
+    // Event Listeners
+    document.getElementById('btn-generate').addEventListener('click', () => {
+        const diff = document.getElementById('difficulty').value;
+        game.start(diff);
+    });
+
+    document.getElementById('btn-load').addEventListener('click', () => {
+        const id = document.getElementById('puzzle-id-input').value.trim();
+        if(id) game.startFromID(id);
+    });
+
+    document.getElementById('btn-solve').addEventListener('click', () => {
+        game.showSolution();
+    });
+
+    document.getElementById('btn-print').addEventListener('click', () => {
+        window.print();
+    });
+
+    // Example View Logic
+    const exampleView = document.getElementById('example-view');
+    
+    document.getElementById('btn-example').addEventListener('click', () => {
+        exampleView.classList.add('active');
+    });
+
+    document.getElementById('btn-return').addEventListener('click', () => {
+        exampleView.classList.remove('active');
+    });
+
+    // Initial Load
+    game.start('Medium');
+
+</script>
+
+</body>
+</html>
