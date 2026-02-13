@@ -3,50 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About - Puzzle Collection</title>
+    <title>About - Robert's Puzzles</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #fcfcfc; }
-        .serif-content { font-family: 'Crimson Pro', serif; line-height: 1.8; }
-        .paper {
-            box-shadow: 0 10px 50px rgba(0,0,0,0.05);
-            background-image: radial-gradient(#e5e7eb 0.5px, transparent 0.5px);
-            background-size: 20px 20px;
+        body {
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .content-card {
+            background: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
     </style>
 </head>
-<body class="p-6 md:p-12 min-h-screen flex flex-col items-center">
-    <nav class="w-full max-w-4xl mb-12">
-        <a href="index.html" class="text-indigo-600 font-bold flex items-center gap-2 hover:text-indigo-800 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+<body class="min-h-screen font-sans antialiased">
+
+    <!-- Navigation -->
+    <nav class="p-6">
+        <a href="index.html" class="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Dashboard
+            Back to Home
         </a>
     </nav>
 
-    <div class="paper w-full max-w-3xl bg-white border border-slate-200 rounded-2xl p-8 md:p-16">
-        <h1 class="text-4xl font-bold text-slate-900 mb-8 border-b pb-6 italic serif-content">About the Puzzles</h1>
-        
-        <div class="serif-content text-xl text-slate-800 space-y-6">
-            <!-- This section represents the content of website about.docx -->
-            <p>Welcome to this collection of procedural puzzles. Each game found on the dashboard is designed to provide infinite variety through algorithmic generation, ensuring that no two sessions are ever exactly the same.</p>
-            
-            <p>The philosophy behind these challenges is simple: logic and arithmetic should be accessible, tactile, and rewarding. From the geometric intricacies of <em>Fields and Fences</em> to the mathematical rigor of <em>Setting the Table</em>, each puzzle encourages the player to discover their own unique strategies.</p>
-            
-            <p>Whether you are looking for a quick five-minute diversion or a deep dive into complex logic with <em>Sudoku</em> or <em>Summit</em>, there is something here for every curious mind.</p>
-            
-            <p>The final entry, <em>Say What?</em>, shifts the focus from numbers to letters, drawing from a vast database of historical aphorisms to challenge your linguistic intuition.</p>
+    <!-- Main Content -->
+    <main class="max-w-3xl mx-auto px-6 pb-12">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">About This Website</h1>
+        </header>
 
-            <div class="pt-8 text-center text-slate-400 italic text-lg">
-                Thank you for playing. Have fun!
-            </div>
+        <div class="content-card rounded-2xl p-8 sm:p-12 space-y-6 text-lg leading-relaxed text-slate-700">
+            <p>
+                Hello, I’m Robert and you can contact me at: 
+                <a href="mailto:iyampuzzled@gmail.com" class="text-blue-600 hover:underline">iyampuzzled@gmail.com</a>.
+            </p>
+
+            <p>
+                I hope you enjoy some of these puzzles and that they provide a pleasant distraction from the topsy-turvy world we’re in. I’m particularly interested if you find that any of these puzzles are appealing to elementary or high school students; please let me know. (That’s the retired math teacher talking.)
+            </p>
+
+            <p>
+                All the applications on this website were created using artificial intelligence. The positive side of this is that the website exists at all, the negative side is that there may be problems or bugs lurking in some of the apps. If you find any, please contact me. Tell me the puzzle, the identifier number and what the problem is. Thank you. Have fun!
+            </p>
         </div>
-    </div>
 
-    <footer class="mt-12 text-slate-400 text-sm">
-        Puzzle logic engines &copy; 2024
-    </footer>
+        <footer class="mt-12 text-center text-slate-500 text-sm">
+            &copy; Robert's Puzzles. Created with AI.
+        </footer>
+    </main>
+
 </body>
 </html>
