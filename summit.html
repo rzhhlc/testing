@@ -17,9 +17,10 @@
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 5in;
-                height: 5in;
+                width: 100%;
+                height: 100vh; /* Set to full page height */
                 background: white !important;
+                display: block;
             }
             .no-print {
                 display: none !important;
@@ -37,13 +38,14 @@
         }
 
         .print-lattice-container {
-            width: 5in;
-            height: 5in;
+            width: 100%;
+            height: 100%;
             background-color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
 
         svg {
@@ -86,9 +88,27 @@
             border: 1px solid #ccc;
             padding: 10px;
         }
+        
+        .print-footer {
+            position: absolute;
+            bottom: 0.2in; /* Slightly offset from extreme edge for printer margins */
+            left: 0.2in;
+            font-size: 12pt;
+            color: black;
+            font-family: Arial, sans-serif;
+            white-space: pre; /* Preserves the spaces requested */
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col items-center py-8 px-4">
+
+    <!-- HOME LINK -->
+    <a href="index.html" class="no-print fixed top-4 left-4 text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Home
+    </a>
 
     <!-- MAIN PUZZLE VIEW -->
     <div id="puzzle-view" class="max-w-2xl w-full bg-white p-8 rounded-xl shadow-lg no-print">
@@ -185,18 +205,22 @@
 
     <div id="print-area" class="hidden print:block">
         <div class="print-lattice-container">
-            <h1 class="text-2xl font-bold mb-1">Climb the Summit</h1>
-            <p class="text-base italic mb-2">Add two lower nodes to climb the mountain.</p>
-            <p class="text-sm mb-0">Find the value of the nodes on the bottom row.</p>
-            <p id="print-instruction-sub" class="text-xs mb-4">Choose them from the consecutive numbers 1 to [order].</p>
-            
-            <div id="print-lattice-svg" style="width: 4.5in; height: 4.5in;">
-                <!-- SVG injected here -->
+            <div class="flex flex-col items-center">
+                <h1 class="text-2xl font-bold mb-1">Climb the Summit</h1>
+                <p class="text-base italic mb-2">Add two lower nodes to climb the mountain.</p>
+                <p class="text-sm mb-0">Find the value of the nodes on the bottom row.</p>
+                <p id="print-instruction-sub" class="text-xs mb-4">Choose them from the consecutive numbers 1 to [order].</p>
+                
+                <div id="print-lattice-svg" style="width: 4.5in; height: 4.5in;">
+                    <!-- SVG injected here -->
+                </div>
+                
+                <div class="mt-4 text-xs font-mono">
+                    Puzzle ID: <span id="print-display-id"></span>
+                </div>
             </div>
-            
-            <div class="mt-4 text-xs font-mono">
-                Puzzle ID: <span id="print-display-id"></span>
-            </div>
+
+            <div class="print-footer">    iyampuzzled.org    </div>
         </div>
     </div>
 

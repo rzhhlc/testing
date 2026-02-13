@@ -11,27 +11,55 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @media print {
+            @page {
+                margin: 0.5in;
+            }
             .no-print { display: none !important; }
             .print-only { 
                 display: block !important; 
                 position: static !important; 
                 width: 100% !important;
             }
-            body { background: white; }
+            .print-footer {
+                display: block !important;
+                position: absolute !important;
+                bottom: 0px;
+                left: 0px;
+                font-size: 12pt !important;
+                color: black !important;
+                background: white;
+            }
+            body { 
+                background: white; 
+                overflow: visible !important;
+            }
+            #root { height: auto !important; }
             .puzzle-container { 
+                display: block !important;
                 border: none !important; 
                 box-shadow: none !important; 
                 width: 100% !important; 
+                height: auto !important;
+                max-height: none !important;
                 max-width: none !important;
-                margin-top: 0.75in !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                aspect-ratio: auto !important;
+                position: relative !important;
+            }
+            svg {
+                width: 100% !important;
+                height: auto !important;
+                display: block !important;
             }
         }
+        .print-footer { display: none; }
         .cursor-pointer { cursor: pointer; }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             background: #4f46e5;
             cursor: pointer;
             border-radius: 50%;
@@ -39,15 +67,24 @@
         .example-doc-container {
             font-family: 'Times New Roman', Times, serif;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans">
+<body class="bg-slate-50 text-slate-900 font-sans overflow-x-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useCallback, useRef } = React;
 
-        // Seeded Random Number Generator (SplitMix32)
         const createPRNG = (seed) => {
             let h = seed >>> 0;
             return () => {
@@ -58,8 +95,7 @@
             };
         };
 
-        // Static diagram component for the example documentation
-        const ExampleDiagram = ({ nodeValues = {}, highlightedSums = {} }) => {
+        const ExampleDiagram = ({ nodeValues = {} }) => {
             const centerX = 200, centerY = 200, radius = 150;
             const outerCount = 5;
             const nodes = [{id: 0, x: centerX, y: centerY}];
@@ -67,28 +103,23 @@
                 const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2;
                 nodes.push({ id: i + 1, x: centerX + radius * Math.cos(angle), y: centerY + radius * Math.sin(angle) });
             }
-
             const regionLabels = [
-                { sum: 6, nodeIds: [0, 4, 5] },
-                { sum: 7, nodeIds: [0, 5, 1] },
-                { sum: 13, nodeIds: [0, 1, 2] },
-                { sum: 10, nodeIds: [0, 3, 4] },
-                // The empty space for the example logic
+                { sum: 6, nodeIds: [0, 3, 4] },
+                { sum: 7, nodeIds: [0, 4, 5] },
+                { sum: 13, nodeIds: [0, 5, 1] },
+                { sum: 10, nodeIds: [0, 2, 3] },
             ];
-
             return (
-                <div className="flex justify-center my-8">
-                    <svg viewBox="0 0 400 400" className="w-full max-w-[400px] border border-slate-100 rounded-xl bg-white shadow-sm">
+                <div className="flex justify-center my-6">
+                    <svg viewBox="0 0 400 400" className="w-full max-w-[340px] border border-slate-100 rounded-2xl bg-white shadow-sm">
                         <g>
-                            {/* Outer Arcs */}
                             {nodes.slice(1).map((n, i) => {
                                 const next = nodes[i === outerCount - 1 ? 1 : i + 2];
                                 const dx = next.x - n.x, dy = next.y - n.y;
                                 const dr = Math.sqrt(dx * dx + dy * dy) * 1.2;
-                                return <path key={i} d={`M ${n.x} ${n.y} A ${dr} ${dr} 0 0 1 ${next.x} ${next.y}`} fill="none" stroke="black" strokeWidth="2" />;
+                                return <path key={i} d={`M ${n.x} ${n.y} A ${dr} ${dr} 0 0 1 ${next.x} ${next.y}`} fill="none" stroke="black" strokeWidth="2.5" />;
                             })}
-                            {/* Spokes */}
-                            {nodes.slice(1).map(n => <line key={n.id} x1={centerX} y1={centerY} x2={n.x} y2={n.y} stroke="black" strokeWidth="2" />)}
+                            {nodes.slice(1).map(n => <line key={n.id} x1={centerX} y1={centerY} x2={n.x} y2={n.y} stroke="black" strokeWidth="2.5" />)}
                         </g>
                         <g>
                             {regionLabels.map((reg, i) => {
@@ -96,9 +127,9 @@
                                 const lx = rNodes.reduce((a, b) => a + b.x, 0) / rNodes.length;
                                 const ly = rNodes.reduce((a, b) => a + b.y, 0) / rNodes.length;
                                 return (
-                                    <g key={i} transform={`translate(${lx-20}, ${ly-20})`}>
-                                        <rect width="40" height="40" rx="8" fill="white" stroke="#6366f1" strokeWidth="2" />
-                                        <text x="20" y="26" textAnchor="middle" className="font-bold fill-indigo-700" style={{fontSize: '18px'}}>{reg.sum}</text>
+                                    <g key={i} transform={`translate(${lx-18}, ${ly-18})`}>
+                                        <rect width="36" height="36" rx="8" fill="white" stroke="#6366f1" strokeWidth="2.5" />
+                                        <text x="18" y="24" textAnchor="middle" className="font-bold fill-indigo-700" style={{fontSize: '16px'}}>{reg.sum}</text>
                                     </g>
                                 );
                             })}
@@ -106,8 +137,8 @@
                         <g>
                             {nodes.map(n => (
                                 <g key={n.id}>
-                                    <circle cx={n.x} cy={n.y} r="20" fill="white" stroke="black" strokeWidth="2" />
-                                    <text x={n.x} y={n.y + 6} textAnchor="middle" className="font-bold fill-slate-900" style={{fontSize: '18px'}}>{nodeValues[n.id] || ''}</text>
+                                    <circle cx={n.x} cy={n.y} r="18" fill="white" stroke="black" strokeWidth="2" />
+                                    <text x={n.x} y={n.y + 6} textAnchor="middle" className="font-bold fill-slate-900" style={{fontSize: '16px'}}>{nodeValues[n.id] || ''}</text>
                                 </g>
                             ))}
                         </g>
@@ -117,51 +148,55 @@
         };
 
         const ExampleView = ({ onBack }) => (
-            <div className="min-h-screen bg-white w-full max-w-[900px] mx-auto p-12 shadow-2xl relative example-doc-container overflow-y-auto">
-                <button 
-                    onClick={onBack}
-                    className="fixed top-8 right-8 bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-900 transition-all z-50 shadow-lg"
-                >
-                    <i data-lucide="corner-up-left" className="w-5 h-5"></i>
-                    Return to puzzle
-                </button>
-
-                <h1 className="text-4xl font-bold border-b-2 border-slate-200 pb-4 mb-8">Example: Fields and Fences Strategy</h1>
+            <div className="min-h-screen bg-white w-full max-w-[900px] mx-auto p-10 md:p-16 shadow-2xl relative example-doc-container overflow-y-auto">
+                <div className="absolute top-8 left-8 no-print">
+                    <a href="index.html" className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-2 text-xl transition-colors">
+                        <i data-lucide="home" className="w-6 h-6"></i> back to homepage
+                    </a>
+                </div>
                 
-                <p className="text-xl leading-relaxed mb-6">
-                    The 6 nodes contain the six consecutive numbers: 1 2 3 4 5 6. We have to place them so the number inside the fields (in the blue squares) the nodes define is the sum of its nodes.
-                </p>
+                <div className="absolute top-8 right-8 no-print">
+                    <button onClick={onBack} className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-2 text-xl transition-colors">
+                        Return to puzzle <i data-lucide="corner-up-left" className="w-6 h-6"></i>
+                    </button>
+                </div>
 
-                <p className="text-xl leading-relaxed mb-6">
-                    One strategy is to look at either the smallest (or largest) sum. In this case the smallest. Using 3 of the consecutive numbers there is only one way to get a sum of 6 = 1 + 2 + 3. The next question is: which nodes do we assign them to? This is a “guess”: Since the largest field, 13, shares a node, I’m putting the 3 in the centre, the 2 on the right and the 1 on the left. These are hunches based on the sums in the adjacent fields. Here’s what we get:
-                </p>
+                <div className="max-w-[700px] mx-auto">
+                    <p className="text-2xl leading-relaxed mb-8">
+                        The 6 nodes contain the six consecutive numbers: 1 2 3 4 5 6. We have to place them so the number inside the fields (in the blue squares) the nodes define is the sum of its nodes.
+                    </p>
 
-                <ExampleDiagram nodeValues={{ 0: 3, 4: 2, 5: 1 }} />
+                    <p className="text-2xl leading-relaxed mb-8">
+                        One strategy is to look at either the smallest (or largest) sum. In this case the smallest. Using 3 of the consecutive numbers there is only one way to get a sum of 6 = 1 + 2 + 3. The next question is: which nodes do we assign them to? This is a “guess”: Since the largest field, 13, shares a node, I’m putting the 3 in the centre, the 2 on the right and the 1 on the left. These are hunches based on the sums in the adjacent fields. Here’s what we get:
+                    </p>
 
-                <p className="text-xl leading-relaxed mb-6">
-                    Now two of the nodes are easy to find: 7 = 1 + 3 + 3. But this cannot be since 3 is already in use. If we swap the 2 and 1 and try again: 7 = 2 + 3 + 2 we run into the same problem. Clearly the centre node cannot be 3 so we exchange the 3 and 2 and try again:
-                </p>
+                    <ExampleDiagram nodeValues={{ 0: 3, 3: 2, 4: 1 }} />
 
-                <ExampleDiagram nodeValues={{ 0: 2, 4: 3, 5: 1 }} />
+                    <p className="text-2xl leading-relaxed mb-8">
+                        Now two of the nodes are easy to find: 7 = 1 + 3 + 3. But this cannot be since 3 is already in use. If we swap the 2 and 1 and try again: 7 = 2 + 3 + 2 we run into the same problem. Clearly the centre node cannot be 3 so we exchange the 3 and 2 and try again:
+                    </p>
 
-                <p className="text-xl leading-relaxed mb-6">
-                    Now we have: 7 = 1 + 2 + 4 which is allowed and 10 = 2 + 3 + 5 also allowed. This gives us:
-                </p>
+                    <ExampleDiagram nodeValues={{ 0: 2, 3: 3, 4: 1 }} />
 
-                <ExampleDiagram nodeValues={{ 0: 2, 4: 3, 5: 1, 1: 4, 3: 5 }} />
+                    <p className="text-2xl leading-relaxed mb-8">
+                        Now we have: 7 = 1 + 2 + 4 which is allowed and 10 = 2 + 3 + 5 also allowed. This gives us:
+                    </p>
 
-                <p className="text-xl leading-relaxed mb-12">
-                    The only number remaining is 6 which completes the field: 13 = 2 + 5 + 6.
-                    <br/><br/>
-                    Now, you may find a better strategy than this (they are out there) but I will give you no hints since the pleasure is in discovering them for yourself.
-                    <br/><br/>
-                    Have fun!
-                </p>
+                    <ExampleDiagram nodeValues={{ 0: 2, 3: 3, 4: 1, 5: 4, 2: 5 }} />
+
+                    <p className="text-2xl leading-relaxed mb-12">
+                        The only number remaining is 6 which completes the field: 13 = 2 + 5 + 6.
+                        <br/><br/>
+                        Now, you may find a better strategy than this (they are out there) but I will give you no hints since the pleasure is in discovering them for yourself.
+                        <br/><br/>
+                        Have fun!
+                    </p>
+                </div>
             </div>
         );
 
         const App = () => {
-            const [view, setView] = useState('puzzle'); // 'puzzle' or 'example'
+            const [view, setView] = useState('puzzle');
             const [nodeCount, setNodeCount] = useState(6);
             const [graphType, setGraphType] = useState('regular'); 
             const [puzzle, setPuzzle] = useState(null);
@@ -174,6 +209,15 @@
             const NODE_RADIUS = 37.5; 
             const SQUARE_SIZE = 90; 
             const HALF_SQUARE = SQUARE_SIZE / 2;
+
+            const cycleValue = (nodeId) => {
+                if (showSolution) return;
+                setUserValues(prev => {
+                    const current = prev[nodeId] || 0;
+                    const next = current >= nodeCount ? 0 : current + 1;
+                    return { ...prev, [nodeId]: next };
+                });
+            };
 
             const distToSegment = (px, py, x1, y1, x2, y2) => {
                 const l2 = (x1 - x2) ** 2 + (y1 - y2) ** 2;
@@ -204,8 +248,7 @@
                 const NODE_MIN_DIST = NODE_RADIUS + HALF_SQUARE + 10; 
                 const EDGE_MIN_DIST = HALF_SQUARE + 6;
                 for (const node of nodes) {
-                    const d = Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2);
-                    if (d < NODE_MIN_DIST) return false;
+                    if (Math.sqrt((x - node.x) ** 2 + (y - node.y) ** 2) < NODE_MIN_DIST) return false;
                 }
                 for (const edge of edges) {
                     const u = nodes[edge.u], v = nodes[edge.v];
@@ -402,58 +445,64 @@
             if (view === 'example') return <ExampleView onBack={() => { setView('puzzle'); setTimeout(() => lucide.createIcons(), 50); }} />;
 
             return (
-                <div className="min-h-screen flex flex-col items-center p-8 sm:p-16">
-                    <header className="text-center mb-12 no-print">
-                        <h1 className="text-7xl font-extrabold tracking-tight text-indigo-700">Fields and Fences</h1>
-                        <p className="text-3xl font-medium text-slate-500 italic mt-4">Nodes: 1..{nodeCount}</p>
+                <div className="h-screen flex flex-col p-4 md:p-6 overflow-hidden relative">
+                    <div className="absolute top-4 left-4 no-print z-50">
+                        <a href="index.html" className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-2 transition-colors">
+                            <i data-lucide="home" className="w-5 h-5"></i> back to homepage
+                        </a>
+                    </div>
+                    
+                    <header className="text-center mb-4 no-print shrink-0">
+                        <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-indigo-700">Fields and Fences</h1>
+                        <p className="text-lg md:text-xl font-medium text-slate-500 italic mt-1">Nodes: 1..{nodeCount}</p>
                     </header>
 
-                    <main className="w-full max-w-[2400px] flex flex-col lg:flex-row gap-16 items-start justify-center">
-                        <section className="no-print bg-white p-12 rounded-3xl shadow-sm border border-slate-200 w-full lg:w-[576px] flex flex-col gap-12">
+                    <main className="flex-1 flex flex-col lg:flex-row gap-6 items-stretch justify-center overflow-hidden">
+                        <section className="no-print bg-white p-6 rounded-2xl shadow-sm border border-slate-200 w-full lg:w-[320px] shrink-0 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
                             <div>
-                                <label className="text-2xl font-bold text-slate-400 uppercase tracking-wider block mb-6">Settings</label>
-                                <div className="space-y-8">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Settings</label>
+                                <div className="space-y-4">
                                     <div>
-                                        <span className="text-2xl text-slate-600 mb-2 block">Number of Nodes: {nodeCount}</span>
-                                        <input type="range" min="4" max="10" step="1" value={nodeCount} onChange={(e) => setNodeCount(parseInt(e.target.value))} className="w-full h-4 bg-slate-200 rounded-2xl appearance-none cursor-pointer accent-indigo-600" />
+                                        <span className="text-sm font-medium text-slate-600 mb-1 block">Number of Nodes: {nodeCount}</span>
+                                        <input type="range" min="4" max="10" step="1" value={nodeCount} onChange={(e) => setNodeCount(parseInt(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600" />
                                     </div>
-                                    <div className="flex gap-4">
-                                        <button onClick={() => setGraphType('regular')} className={`flex-1 py-4 text-xl font-semibold rounded-2xl border transition-all ${graphType === 'regular' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Regular</button>
-                                        <button onClick={() => setGraphType('irregular')} className={`flex-1 py-4 text-xl font-semibold rounded-2xl border transition-all ${graphType === 'irregular' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Irregular</button>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setGraphType('regular')} className={`flex-1 py-2 text-sm font-semibold rounded-xl border transition-all ${graphType === 'regular' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Regular</button>
+                                        <button onClick={() => setGraphType('irregular')} className={`flex-1 py-2 text-sm font-semibold rounded-xl border transition-all ${graphType === 'irregular' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>Irregular</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="pt-8 border-t border-slate-100">
-                                <label className="text-2xl font-bold text-slate-400 uppercase tracking-wider block mb-6">Load Puzzle ID</label>
-                                <form onSubmit={(e) => { e.preventDefault(); generatePuzzle(idInput); }} className="flex gap-4">
-                                    <input type="text" value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="e.g. 6-REG-12345" className="flex-1 px-6 py-4 text-xl border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                    <button type="submit" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold text-xl hover:bg-indigo-700 transition-colors">Load</button>
+                            <div className="pt-4 border-t border-slate-100">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-3">Load ID</label>
+                                <form onSubmit={(e) => { e.preventDefault(); generatePuzzle(idInput); }} className="flex gap-2">
+                                    <input type="text" value={idInput} onChange={(e) => setIdInput(e.target.value)} placeholder="6-REG-..." className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                    <button type="submit" className="bg-indigo-600 text-white px-3 py-2 rounded-xl font-bold text-sm hover:bg-indigo-700">Go</button>
                                 </form>
-                                <p className="mt-4 text-slate-400 text-lg">Current ID: <span className="font-mono font-bold text-indigo-500">{puzzleId}</span></p>
+                                <p className="mt-2 text-slate-400 text-[10px] truncate">Current: <span className="font-mono text-indigo-500">{puzzleId}</span></p>
                             </div>
 
-                            <div className="space-y-4 pt-8 border-t border-slate-100">
-                                <button onClick={() => setView('example')} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-2xl font-bold hover:bg-indigo-100 transition-all">
-                                    <i data-lucide="book-open" className="w-8 h-8"></i>Example
+                            <div className="space-y-2 mt-auto pt-4 border-t border-slate-100">
+                                <button onClick={() => setView('example')} className="w-full flex items-center justify-center gap-2 py-3 text-sm bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-all">
+                                    <i data-lucide="book-open" className="w-4 h-4"></i>Example
                                 </button>
-                                <button onClick={() => generatePuzzle()} disabled={isGenerating} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-2xl font-bold transition-all disabled:opacity-50">
-                                    <i data-lucide="refresh-cw" className={`w-8 h-8 ${isGenerating ? 'animate-spin' : ''}`}></i>New Puzzle
+                                <button onClick={() => generatePuzzle()} disabled={isGenerating} className="w-full flex items-center justify-center gap-2 py-3 text-sm bg-white hover:bg-slate-50 text-indigo-600 border border-indigo-200 rounded-xl font-bold transition-all disabled:opacity-50">
+                                    <i data-lucide="refresh-cw" className={`w-4 h-4 ${isGenerating ? 'animate-spin' : ''}`}></i>New Puzzle
                                 </button>
-                                <button onClick={() => setShowSolution(!showSolution)} className={`w-full flex items-center justify-center gap-4 py-6 text-2xl rounded-2xl font-bold transition-all ${showSolution ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}>
-                                    <i data-lucide={showSolution ? 'eye-off' : 'eye'} className="w-8 h-8"></i> {showSolution ? 'Hide Solution' : 'Show Solution'}
+                                <button onClick={() => setShowSolution(!showSolution)} className={`w-full flex items-center justify-center gap-2 py-3 text-sm rounded-xl font-bold transition-all ${showSolution ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'}`}>
+                                    <i data-lucide={showSolution ? 'eye-off' : 'eye'} className="w-4 h-4"></i> {showSolution ? 'Hide Sol' : 'Show Sol'}
                                 </button>
-                                <button onClick={() => window.print()} className="w-full flex items-center justify-center gap-4 py-6 text-2xl bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-bold shadow-lg transition-all">
-                                    <i data-lucide="printer" className="w-8 h-8"></i>Print Puzzle
+                                <button onClick={() => window.print()} className="w-full flex items-center justify-center gap-2 py-3 text-sm bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold shadow-lg transition-all">
+                                    <i data-lucide="printer" className="w-4 h-4"></i>Print
                                 </button>
                             </div>
                         </section>
 
-                        <div className="flex-1 flex flex-col items-center">
-                            <div className="puzzle-container bg-white p-8 sm:p-16 rounded-[4rem] shadow-xl border border-slate-200 relative overflow-hidden flex items-center justify-center aspect-square w-full max-w-[1050px]">
-                                <div className="hidden print-only w-full text-center">
-                                    <h1 className="text-4xl font-bold text-indigo-700">Fields and Fences</h1>
-                                    <p className="text-xl italic">Nodes: 1..{nodeCount} | ID: {puzzleId}</p>
+                        <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+                            <div className="puzzle-container bg-white p-4 md:p-8 rounded-[2rem] shadow-xl border border-slate-200 relative overflow-hidden flex items-center justify-center aspect-square h-full max-h-[calc(100vh-220px)] w-auto max-w-full">
+                                <div className="hidden print-only w-full text-center py-4">
+                                    <h1 className="text-4xl font-extrabold text-indigo-700 mb-2">Fields and Fences</h1>
+                                    <p className="text-xl italic text-slate-600 mb-6 font-medium">Nodes: 1..{nodeCount} | ID: {puzzleId}</p>
                                 </div>
                                 {puzzle && (
                                     <svg viewBox="0 0 1500 1500" className="w-full h-full select-none">
@@ -488,17 +537,25 @@
                                         </g>
                                     </svg>
                                 )}
-                                {isGenerating && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"><i data-lucide="refresh-cw" className="w-24 h-24 text-indigo-600 animate-spin"></i></div>}
+                                <div className="print-footer">
+                                    &nbsp; &nbsp; iyampuzzled.org &nbsp; &nbsp;
+                                </div>
+                                {isGenerating && <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center"><i data-lucide="refresh-cw" className="w-16 h-16 text-indigo-600 animate-spin"></i></div>}
                             </div>
-                            <div className="mt-12 flex flex-wrap justify-center gap-6 no-print">
+                            
+                            <div className="mt-4 flex flex-wrap justify-center gap-2 no-print shrink-0">
                                 {Array.from({ length: nodeCount }, (_, i) => i + 1).map(num => {
                                     const count = Object.values(userValues).filter(v => v === num).length;
-                                    return <div key={num} className={`px-12 py-4 rounded-3xl text-3xl font-bold border transition-all ${count === 1 ? 'bg-green-100 text-green-700 border-green-200' : count > 1 ? 'bg-red-100 text-red-700 border-red-200 shadow-inner' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>{num}</div>;
+                                    return (
+                                        <div key={num} className={`px-4 py-2 rounded-xl text-lg font-bold border transition-all ${count === 1 ? 'bg-green-100 text-green-700 border-green-200' : count > 1 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
+                                            {num}
+                                        </div>
+                                    );
                                 })}
                             </div>
                         </div>
                     </main>
-                    <footer className="mt-24 text-slate-400 text-lg no-print text-center">Procedural logic engine with seeded randomization.</footer>
+                    <footer className="mt-4 text-slate-400 text-xs no-print text-center shrink-0">Procedural logic engine with seeded randomization.</footer>
                 </div>
             );
         };
